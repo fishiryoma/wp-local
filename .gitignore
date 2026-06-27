@@ -1,0 +1,36 @@
+# ── Local WP ────────────────────────────────────────────────────
+# Exclude entire app/ except get-all-urls.php
+app/*
+!app/public/
+app/public/*
+!app/public/get-all-urls.php
+
+# Environment variables
+**/.envrc
+.env
+.env.*
+
+# Database (contains all WordPress data and hashed passwords)
+*.sql
+
+# Server config
+conf/
+logs/
+
+# ── Generated output ─────────────────────────────────────────────
+deploy/
+
+# ── Wrangler (contains Account ID and email) ────────────────────
+**/.wrangler/
+
+# ── Python ───────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+
+# ── Script cache ─────────────────────────────────────────────────
+.compress-cache.json
+
+# ── OS ───────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
