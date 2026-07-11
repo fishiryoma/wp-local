@@ -1,0 +1,13 @@
+name = "tesstaiwan-analytics"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+account_id = "b9e74991ba65cef5c6f1a41945756107"
+
+# Cron Trigger：UTC 18:00 = 台灣時間凌晨 2 點
+[triggers]
+crons = ["0 18 * * *"]
+
+# KV Namespace：執行 wrangler kv namespace create ANALYTICS 後填入 id
+[[kv_namespaces]]
+binding = "ANALYTICS_KV"
+id = "cedd485fffba4de3879e66f4f54b1866"

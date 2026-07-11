@@ -35,7 +35,7 @@ python build-static.py --html-only
 
 ```powershell
 cd "C:\Users\User\Local Sites\tesstaiwan-local"
-npx wrangler pages deploy deploy --project-name tesstaiwan
+npx wrangler pages deploy deploy --project-name tesstaiwan --branch production
 ```
 
 ---
@@ -58,7 +58,7 @@ python quick-publish.py http://tesstaiwan-local.local/你的文章網址/
 
 ```powershell
 cd "C:\Users\User\Local Sites\tesstaiwan-local"
-npx wrangler pages deploy deploy --project-name tesstaiwan
+npx wrangler pages deploy deploy --project-name tesstaiwan --branch production
 ```
 
 ---
@@ -99,21 +99,58 @@ http://tesstaiwan-local.local/get-all-urls.php
 
 1. 開啟 Local WP
 2. 在 WordPress 後台寫文章並發布
-3. `cd "C:\Users\User\Local Sites\tesstaiwan-local"` → `python quick-publish.py http://tesstaiwan-local.local/文章網址/`
-4. `npx wrangler pages deploy deploy --project-name tesstaiwan`
+3. 執行一鍵發布腳本：
+
+```powershell
+cd "C:\Users\User\Local Sites\tesstaiwan-local"
+python new-post.py http://tesstaiwan-local.local/你的文章網址/
+```
+
+腳本會依序完成：壓縮圖片 → 上傳圖片到 R2 → Build HTML → Deploy 到 Pages。
 
 ## 只改設定（不換主題/外掛）
 
 1. 開啟 Local WP，在 WordPress 後台修改設定
 2. `cd "C:\Users\User\Local Sites\tesstaiwan-local"` → `python build-static.py --html-only`
-3. `npx wrangler pages deploy deploy --project-name tesstaiwan`
+3. `npx wrangler pages deploy deploy --project-name tesstaiwan --branch production`
 
 ## 完整重建流程（換主題、外掛或首次建置）
 
 1. 開啟 Local WP
 2. 瀏覽器打開 `http://tesstaiwan-local.local/get-all-urls.php`，等待完成
 3. `cd "C:\Users\User\Local Sites\tesstaiwan-local"` → `python build-static.py`
-4. `npx wrangler pages deploy deploy --project-name tesstaiwan`
+4. `npx wrangler pages deploy deploy --project-name tesstaiwan --branch production`
+
+---
+
+## Analytics 同步（人気記事排名）
+
+靜態化後 Cocoon 停止追蹤瀏覽數，本腳本從 Cloudflare Analytics 補回數據，讓人気記事 widget 反映真實流量。每次 build 時會**自動執行**，無需手動呼叫。
+
+**初次設定：**
+
+1. 在 `.env` 填入你的 Cloudflare Analytics Token（需 `Zone Analytics:Read` 權限），變數名稱為 `ANALYTICS_TOKEN`（不用 `CF_API_TOKEN`，避免 wrangler 誤用）
+2. 在 Local WP → 你的網站 → Database 分頁，確認 MySQL Port，填入 `.env` 的 `DB_PORT`
+3. 安裝依賴套件：
+
+```powershell
+pip install requests pymysql python-dotenv
+```
+
+**手動執行（可選）：**
+
+```powershell
+cd "C:\Users\User\Local Sites\tesstaiwan-local"
+
+# 增量同步（上次到昨天，一般使用）
+python sync-analytics.py
+
+# 全量同步（從靜態上線日 2026-06-20 開始，第一次使用）
+python sync-analytics.py --from-start
+```
+
+> 執行結束後會列出本次新增瀏覽數 TOP 10。  
+> 同步狀態存於 `.analytics-sync.json`（已加入 .gitignore）。
 
 ---
 
@@ -138,8 +175,9 @@ python compress-images.py --all
 **步驟 2：同步到 R2**
 
 ```powershell
-aws s3 sync "C:\Users\User\Local Sites\tesstaiwan-local\app\public\wp-content\uploads" s3://tesstaiwan-uploads --endpoint-url https://<<ACCOUNTID>.r2.cloudflarestorage.com
+aws s3 sync "C:\Users\User\Local Sites\tesstaiwan-local\app\public\wp-content\uploads" s3://tesstaiwan-uploads --endpoint-url https://<ACCOUNTID>.r2.cloudflarestorage.com --size-only
 ```
 
+> `--size-only`：用檔案大小比對（而非 MD5 checksum）。R2 的 ETag 計算與 S3 不同，不加此旗標會導致每次都重新上傳所有檔案。
 > 預設不加 `--delete`，只會新增/更新檔案，不會刪除 R2 上的任何東西。
 > 若未來 R2 容量接近 10GB 上限，可加上 `--delete` 讓 R2 與本地完全同步（本地已刪的檔案會一併從 R2 移除）。

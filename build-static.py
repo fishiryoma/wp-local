@@ -136,6 +136,18 @@ def copy_dir(src, dst, exclude_names=None):
     shutil.copytree(src, dst, ignore=_ignore if exclude_names else None)
 
 
+def sync_analytics():
+    """建置前先同步 Cloudflare Analytics → wp_cocoon_accesses"""
+    import subprocess
+    sync_script = Path(__file__).parent / "sync-analytics.py"
+    if not sync_script.exists():
+        return
+    print("\n[0/4] 同步 Cloudflare Analytics...")
+    result = subprocess.run([sys.executable, str(sync_script)], cwd=str(Path(__file__).parent))
+    if result.returncode != 0:
+        print("  ⚠️  Analytics 同步失敗，繼續 build（人気記事排名可能非最新）")
+
+
 def main():
     html_only = "--html-only" in sys.argv
     start_time = time.time()
@@ -145,6 +157,9 @@ def main():
     if html_only:
         print("  Mode: HTML only (skipping asset copy)")
     print("=" * 50)
+
+    # Step 0: sync analytics
+    sync_analytics()
 
     # Step 1: collect URLs
     print("\n[1/4] Getting all URLs from WordPress database...")
@@ -223,7 +238,7 @@ def main():
     print(f"  Size   : {total_mb:,.0f} MB")
     print(f"  Time   : {mins}m {secs}s")
     print("=" * 50)
-    print("\nNext: npx wrangler pages deploy deploy --project-name tesstaiwan")
+    print("\nNext: npx wrangler pages deploy deploy --project-name tesstaiwan --branch production")
 
 
 if __name__ == "__main__":

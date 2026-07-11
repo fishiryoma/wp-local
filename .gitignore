@@ -9,6 +9,7 @@ app/public/*
 **/.envrc
 .env
 .env.*
+.dev.vars
 
 # Database (contains all WordPress data and hashed passwords)
 *.sql
@@ -30,6 +31,11 @@ __pycache__/
 
 # ── Script cache ─────────────────────────────────────────────────
 .compress-cache.json
+.analytics-sync.json
+
+# ── style-editor (日文校對工具) ────────────────────────────────────
+style-editor/sessions/
+style-editor/backups/
 
 # ── OS ───────────────────────────────────────────────────────────
 .DS_Store
