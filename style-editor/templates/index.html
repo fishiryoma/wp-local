@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>テス日文校對工具</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <h1>日文校對工具</h1>
+    {% if not has_api_key %}
+    <div class="warn-box">
+      ⚠️ 尚未設定 GEMINI_API_KEY，請到專案根目錄的 <code>.env</code> 新增後重新啟動。
+    </div>
+    {% endif %}
+    <input id="search" type="text" placeholder="搜尋文章標題...">
+    <div id="post-list" class="post-list"></div>
+  </aside>
+
+  <main class="content">
+    <div id="empty-state" class="empty-state">
+      從左側選一篇文章開始校對。
+    </div>
+
+    <div id="editor" class="editor" style="display:none">
+      <div class="editor-header">
+        <h2 id="post-title"></h2>
+        <div class="editor-actions">
+          <button id="btn-prepare" class="btn btn-primary">開始 / 重新 AI 校對</button>
+          <span id="summary" class="summary"></span>
+          <button id="btn-apply" class="btn btn-danger" disabled>套用並覆蓋原文</button>
+        </div>
+      </div>
+      <div id="warnings" class="warnings"></div>
+      <div id="applied-banner" class="applied-banner" style="display:none"></div>
+      <div id="title-panel" class="title-panel" style="display:none"></div>
+      <div id="review-content" class="review-content"></div>
+    </div>
+  </main>
+</div>
+
+<div id="redo-modal" class="modal" style="display:none">
+  <div class="modal-box">
+    <h3>要求重新調整</h3>
+    <p class="modal-hint">告訴 AI 這段哪裡不對，例如：「這太書面語了，我平常不會這樣講」、「這個不是錯字，請保留原文」。</p>
+    <textarea id="redo-instruction" rows="3" placeholder="輸入你的意見..."></textarea>
+    <div class="modal-actions">
+      <button id="redo-cancel" class="btn">取消</button>
+      <button id="redo-submit" class="btn btn-primary">送出</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
