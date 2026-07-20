@@ -113,7 +113,7 @@ def count_changes(spans) -> int:
     return sum(1 for s in spans if s["tag"] == "change")
 
 
-def render_node_fragment(node_index, spans, statuses, mode, shortcode_map):
+def render_node_fragment(node_index, spans, statuses, mode, shortcode_map, kind="grammar"):
     out = []
     change_idx = 0
     for sp in spans:
@@ -124,7 +124,8 @@ def render_node_fragment(node_index, spans, statuses, mode, shortcode_map):
             status = statuses[change_idx] if change_idx < len(statuses) else "accepted"
             orig = restore_shortcodes(sp["original"], shortcode_map)
             corr = restore_shortcodes(sp["corrected"], shortcode_map)
-            if mode == "review":
+            if mode == "review" and kind == "grammar":
+                # 日文校對：逐處可以採用/維持原文/要求重新調整
                 cid = f"{node_index}:{change_idx}"
                 cls = "accepted" if status == "accepted" else "rejected"
                 out.append(
@@ -137,28 +138,96 @@ def render_node_fragment(node_index, spans, statuses, mode, shortcode_map):
                     + '<button type="button" class="tp-btn tp-redo" title="この修正をやり直す">&#9998;</button>'
                     + '</span></span>'
                 )
+            elif mode == "review":
+                # 事實查核：筆記功能，沒有採用/維持原文的概念，單純用刪除線+建議文字呈現，
+                # 不需要按鈕、也不需要點擊互動，テスさん自己看著判斷要不要動筆。
+                out.append(
+                    '<span class="tp-change accepted">'
+                    + '<del class="tp-del">' + html_lib.escape(orig) + '</del>'
+                    + '<ins class="tp-ins">' + html_lib.escape(corr) + '</ins>'
+                    + '</span>'
+                )
             else:
                 out.append(corr if status == "accepted" else orig)
             change_idx += 1
     return "".join(out)
 
 
-def render_node(node_index, protected_original, protected_corrected, statuses, mode, shortcode_map):
+def _sources_html(sources) -> str:
+    """sources 清單組成可以直接點開的來源連結，note/note-only 的來源都用這個。"""
+    if not sources:
+        return ""
+    links = []
+    for s in sources:
+        note_text = (s.get("note") or "").strip()
+        url = (s.get("url") or "").strip()
+        label = html_lib.escape(note_text or url or "來源")
+        if url:
+            links.append('<a href="' + html_lib.escape(url) + '" target="_blank" rel="noopener">' + label + "</a>")
+        else:
+            links.append(label)
+    return '<span class="tp-note-sources">' + "　".join(links) + "</span>"
+
+
+def render_node(
+    node_index,
+    protected_original,
+    protected_corrected,
+    statuses,
+    mode,
+    shortcode_map,
+    sources=None,
+    kind="grammar",
+    note=None,
+):
     spans = diff_spans(protected_original, protected_corrected)
-    inner = render_node_fragment(node_index, spans, statuses, mode, shortcode_map)
+    inner = render_node_fragment(node_index, spans, statuses, mode, shortcode_map, kind=kind)
     if mode == "review":
-        return '<span class="tp-node" data-node-index="' + str(node_index) + '">' + inner + '</span>'
+        cite_html = ""
+        # 逐字修改旁邊的小圖示只在 grammar 用滑鼠提示；事實查核的來源改成在筆記區塊裡用
+        # 看得到的連結呈現（見下面 note_html），這裡就不重複顯示。
+        if sources and kind == "grammar":
+            tip_parts = []
+            for s in sources:
+                note_txt = (s.get("note") or "").strip()
+                url = (s.get("url") or "").strip()
+                tip_parts.append((note_txt + " " + url).strip())
+            tip = " ／ ".join(p for p in tip_parts if p)
+            cite_html = (
+                ' <span class="tp-cite" title="' + html_lib.escape(tip) + '">🔗' + str(len(sources)) + '</span>'
+            )
+
+        note_html = ""
+        if note:
+            note_sources = sources if kind != "grammar" else None
+            note_html = (
+                '<span class="tp-note"><span class="tp-note-icon">📝</span>'
+                '<span class="tp-note-text">' + html_lib.escape(note) + "</span>"
+                + _sources_html(note_sources)
+                + "</span>"
+            )
+
+        return (
+            '<span class="tp-node" data-node-index="' + str(node_index) + '">'
+            + inner + cite_html + note_html + "</span>"
+        )
     return inner
 
 
-def build_html(raw_content: str, node_records: list, mode: str) -> str:
+def build_html(raw_content: str, node_records: list, mode: str, kind: str = "grammar") -> str:
     soup, dom_nodes = extract_nodes(raw_content)
     for idx, dom_node in enumerate(dom_nodes):
         rec = node_records[idx] if idx < len(node_records) else None
         if not rec:
             continue
-        if rec["protected_original"] == rec["protected_corrected"]:
+        has_diff = rec["protected_original"] != rec["protected_corrected"]
+        has_note = bool(rec.get("note"))
+        if not has_diff and not has_note:
             continue
+        if mode != "review":
+            # 最終套用內容裡不需要（也不應該有）筆記，筆記只在畫面上給人看
+            if not has_diff:
+                continue
         fragment_html = render_node(
             idx,
             rec["protected_original"],
@@ -166,6 +235,9 @@ def build_html(raw_content: str, node_records: list, mode: str) -> str:
             rec["statuses"],
             mode,
             rec["shortcode_map"],
+            sources=rec.get("sources"),
+            kind=kind,
+            note=rec.get("note") if mode == "review" else None,
         )
         if mode == "review":
             frag_soup = BeautifulSoup(fragment_html, "html.parser")

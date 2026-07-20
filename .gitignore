@@ -36,6 +36,7 @@ __pycache__/
 # ── style-editor (日文校對工具) ────────────────────────────────────
 style-editor/sessions/
 style-editor/backups/
+style-editor/factcheck_exports/
 
 # ── OS ───────────────────────────────────────────────────────────
 .DS_Store
