@@ -28,14 +28,23 @@ foreach ($post_types as $post_type) {
 // 2. Homepage
 $urls[] = home_url('/');
 
-// 3. All category / tag / taxonomy archive pages
+// 每頁文章數（後面各段都會用到）
+$posts_per_page = (int) get_option('posts_per_page') ?: 10;
+
+// 3. All category / tag / taxonomy archive pages（含分頁）
 $taxonomies = get_taxonomies(['public' => true], 'names');
 foreach ($taxonomies as $taxonomy) {
     $terms = get_terms(['taxonomy' => $taxonomy, 'hide_empty' => true, 'number' => 0]);
     if (is_wp_error($terms)) continue;
     foreach ($terms as $term) {
         $link = get_term_link($term);
-        if (!is_wp_error($link)) $urls[] = $link;
+        if (is_wp_error($link)) continue;
+        $urls[] = $link; // 第 1 頁
+        // 加入第 2 頁起的分頁 URL
+        $term_pages = (int) ceil($term->count / $posts_per_page);
+        for ($i = 2; $i <= $term_pages; $i++) {
+            $urls[] = trailingslashit($link) . 'page/' . $i . '/';
+        }
     }
 }
 
@@ -59,9 +68,8 @@ foreach ($dates as $d) {
 }
 
 // 6. Pagination for main blog index
-$posts_per_page = (int) get_option('posts_per_page') ?: 10;
-$total_posts    = (int) wp_count_posts()->publish;
-$total_pages    = (int) ceil($total_posts / $posts_per_page);
+$total_posts = (int) wp_count_posts()->publish;
+$total_pages = (int) ceil($total_posts / $posts_per_page);
 for ($i = 2; $i <= $total_pages; $i++) {
     $urls[] = home_url('/page/' . $i . '/');
 }

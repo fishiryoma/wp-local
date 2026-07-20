@@ -31,10 +31,10 @@ import os
 BASE_DIR    = Path(__file__).parent
 load_dotenv(BASE_DIR / ".env")
 
-CF_ACCOUNT_ID = os.getenv("CF_ACCOUNT_ID", "")   # 選填，若已在 wrangler 設定則不需要
+CF_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")   # 選填，若已在 wrangler 設定則不需要
 UPLOADS_DIR = BASE_DIR / "app" / "public" / "wp-content" / "uploads"
 R2_BUCKET   = "tesstaiwan-uploads"
-R2_ENDPOINT = f"https://{os.getenv('CF_ACCOUNT_ID', 'YOUR_ACCOUNT_ID')}.r2.cloudflarestorage.com"
+R2_ENDPOINT = f"https://{os.getenv('CLOUDFLARE_ACCOUNT_ID', 'YOUR_ACCOUNT_ID')}.r2.cloudflarestorage.com"
 DEPLOY_DIR  = BASE_DIR / "deploy"
 CF_PROJECT  = "tesstaiwan"
 # ─────────────────────────────────────────────────────────────────────
