@@ -136,16 +136,28 @@ def copy_dir(src, dst, exclude_names=None):
     shutil.copytree(src, dst, ignore=_ignore if exclude_names else None)
 
 
+def backup_db():
+    """建置前先備份 MySQL -> R2（若距上次備份 >= 30 天）"""
+    import subprocess
+    backup_script = Path(__file__).parent / "backup-db.py"
+    if not backup_script.exists():
+        return
+    print("\n[0a/4] DB 備份檢查...")
+    result = subprocess.run([sys.executable, str(backup_script)], cwd=str(Path(__file__).parent))
+    if result.returncode != 0:
+        print("  警告：DB 備份失敗，繼續 build（請手動執行 python backup-db.py）")
+
+
 def sync_analytics():
     """建置前先同步 Cloudflare Analytics → wp_cocoon_accesses"""
     import subprocess
     sync_script = Path(__file__).parent / "sync-analytics.py"
     if not sync_script.exists():
         return
-    print("\n[0/4] 同步 Cloudflare Analytics...")
+    print("\n[0b/4] 同步 Cloudflare Analytics...")
     result = subprocess.run([sys.executable, str(sync_script)], cwd=str(Path(__file__).parent))
     if result.returncode != 0:
-        print("  ⚠️  Analytics 同步失敗，繼續 build（人気記事排名可能非最新）")
+        print("  警告：Analytics 同步失敗，繼續 build（人気記事排名可能非最新）")
 
 
 def main():
@@ -158,7 +170,8 @@ def main():
         print("  Mode: HTML only (skipping asset copy)")
     print("=" * 50)
 
-    # Step 0: sync analytics
+    # Step 0: backup DB + sync analytics
+    backup_db()
     sync_analytics()
 
     # Step 1: collect URLs

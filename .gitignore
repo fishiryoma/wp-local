@@ -32,6 +32,7 @@ __pycache__/
 # ── Script cache ─────────────────────────────────────────────────
 .compress-cache.json
 .analytics-sync.json
+.backup-state.json
 
 # ── style-editor (日文校對工具) ────────────────────────────────────
 style-editor/sessions/
