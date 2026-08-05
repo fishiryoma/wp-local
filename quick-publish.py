@@ -11,8 +11,12 @@ What it rebuilds:
     - All category archive pages the post belongs to
     - All tag archive pages the post belongs to
 
-After running, deploy with:
-    npx wrangler pages deploy deploy --project-name tesstaiwan
+這支只建 HTML：不壓縮圖片、不同步 R2、不做 DB 備份、也不部署。
+一般發文請用 new-post.py（會完整跑這些步驟）；只有確定完全沒動過圖片、
+想省下圖片比對的約 30 秒時才單獨用這支。
+
+單獨執行完要自己部署：
+    python deploy-pages.py
 """
 
 import sys
@@ -21,10 +25,14 @@ import requests
 from pathlib import Path
 from urllib.parse import urlparse
 
+# 頁面路徑與訊息含中日文與 emoji（⚠️），cp950 主控台直接 print 會噴 UnicodeEncodeError
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # ── Config ──────────────────────────────────────────────────────
+BASE_DIR   = Path(__file__).parent
 LOCAL_URL  = "http://tesstaiwan-local.local"
 PROD_URL   = "https://tesstaiwan.com"
-DEPLOY_DIR = Path(r"C:\Users\User\Local Sites\tesstaiwan-local\deploy")
+DEPLOY_DIR = BASE_DIR / "deploy"
 TIMEOUT    = 60
 # ────────────────────────────────────────────────────────────────
 
@@ -167,7 +175,7 @@ def main():
 
     print(f"\nDone: {ok}/{len(urls)} pages updated.  Time: {mins}m {secs}s")
     print("\nNext step:")
-    print('  npx wrangler pages deploy deploy --project-name tesstaiwan --branch production')
+    print("  python deploy-pages.py")
 
 
 if __name__ == "__main__":

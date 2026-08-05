@@ -18,6 +18,9 @@ import re
 import requests
 from pathlib import Path
 
+# 訊息含中文，cp950 主控台直接 print 會噴 UnicodeEncodeError 中斷同步
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # ── Load .env ─────────────────────────────────────────────────────
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")

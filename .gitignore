@@ -34,6 +34,9 @@ __pycache__/
 .analytics-sync.json
 .backup-state.json
 
+# build-static.py 抓頁面失敗時的清單（刻意放在 deploy/ 外，避免被部署成公開檔案）
+_failed_urls.txt
+
 # ── style-editor (日文校對工具) ────────────────────────────────────
 style-editor/sessions/
 style-editor/backups/

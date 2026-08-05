@@ -4,11 +4,24 @@ WordPress Static Site Builder
 Fetches all pages from database (via get-all-urls.php), copies assets directly.
 
 Usage:
-    python build-static.py              # full rebuild
+    python build-static.py              # full rebuild + deploy
     python build-static.py --html-only  # re-fetch HTML only, skip asset copy (faster)
+    python build-static.py --no-deploy  # build but don't deploy
 
 --html-only: use when WordPress settings changed but theme/plugin files did not.
              Keeps existing themes/plugins/wp-includes in deploy/, only re-fetches HTML.
+
+完整流程：
+    1. DB 備份檢查（backup-db.py，距上次 >= 30 天才真的備份）
+    2. Analytics 同步（sync-analytics.py）
+    3. 壓縮新圖片（compress-images.py）
+    4. 同步圖片到 Cloudflare R2（sync-images.py）
+    5. 取得全站 URL 清單、清理 output
+    6. 抓取全部頁面 HTML（+ 複製 themes/plugins/wp-includes，--html-only 跳過）
+    7. 部署到 Cloudflare Pages（deploy-pages.py）
+
+圖片先於 HTML 上傳，避免訪客看到新頁面時圖片還沒就位。
+若有任何頁面抓取失敗，會跳過部署，避免把殘缺的站推上線。
 
 Requirements:
     pip install requests
@@ -17,19 +30,27 @@ Requirements:
 import sys
 import time
 import shutil
+import subprocess
 import requests
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 
+# 頁面路徑與訊息含中日文與 emoji（❌ ✅），cp950 主控台直接 print 會噴 UnicodeEncodeError
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # ── Configuration ──────────────────────────────────────────────
+BASE_DIR       = Path(__file__).parent
 LOCAL_URL      = "http://tesstaiwan-local.local"
 PROD_URL       = "https://tesstaiwan.com"
-WP_ROOT        = Path(r"C:\Users\User\Local Sites\tesstaiwan-local\app\public")
-OUTPUT_DIR     = Path(r"C:\Users\User\Local Sites\tesstaiwan-local\deploy")
+WP_ROOT        = BASE_DIR / "app" / "public"
+OUTPUT_DIR     = BASE_DIR / "deploy"
+# 刻意放在 deploy/ 之外：寫在 deploy/ 裡會被一起部署，變成公開可讀的檔案
+FAILED_URLS_FILE = BASE_DIR / "_failed_urls.txt"
 WORKERS        = 6      # parallel page fetchers
 TIMEOUT        = 90     # seconds per page
+TOTAL_STEPS    = 7
 # ───────────────────────────────────────────────────────────────
 
 
@@ -136,51 +157,57 @@ def copy_dir(src, dst, exclude_names=None):
     shutil.copytree(src, dst, ignore=_ignore if exclude_names else None)
 
 
-def backup_db():
-    """建置前先備份 MySQL -> R2（若距上次備份 >= 30 天）"""
-    import subprocess
-    backup_script = Path(__file__).parent / "backup-db.py"
-    if not backup_script.exists():
-        return
-    print("\n[0a/4] DB 備份檢查...")
-    result = subprocess.run([sys.executable, str(backup_script)], cwd=str(Path(__file__).parent))
-    if result.returncode != 0:
-        print("  警告：DB 備份失敗，繼續 build（請手動執行 python backup-db.py）")
+def run_step(step, label, script, fatal=False, warn=None):
+    """執行同目錄下的一支腳本。
 
+    fatal=True  失敗就中止整個 build（圖片沒同步好就不該繼續往下建）
+    fatal=False 失敗只印警告後繼續（備份／analytics 不該擋住 build）
+    """
+    path = BASE_DIR / script
+    if not path.exists():
+        print(f"\n[{step}/{TOTAL_STEPS}] {label} — 找不到 {script}，略過")
+        return True
 
-def sync_analytics():
-    """建置前先同步 Cloudflare Analytics → wp_cocoon_accesses"""
-    import subprocess
-    sync_script = Path(__file__).parent / "sync-analytics.py"
-    if not sync_script.exists():
-        return
-    print("\n[0b/4] 同步 Cloudflare Analytics...")
-    result = subprocess.run([sys.executable, str(sync_script)], cwd=str(Path(__file__).parent))
+    print(f"\n[{step}/{TOTAL_STEPS}] {label}...")
+    result = subprocess.run([sys.executable, str(path)], cwd=str(BASE_DIR))
     if result.returncode != 0:
-        print("  警告：Analytics 同步失敗，繼續 build（人気記事排名可能非最新）")
+        if fatal:
+            print(f"\n  ❌ {label} 失敗（exit code {result.returncode}），中止。")
+            sys.exit(1)
+        print(f"  警告：{warn or f'{label} 失敗，繼續 build'}")
+        return False
+    return True
 
 
 def main():
     html_only = "--html-only" in sys.argv
+    no_deploy = "--no-deploy" in sys.argv
     start_time = time.time()
 
     print("=" * 50)
     print("  WordPress Static Builder")
     if html_only:
         print("  Mode: HTML only (skipping asset copy)")
+    if no_deploy:
+        print("  Mode: --no-deploy (建置後不部署)")
     print("=" * 50)
 
-    # Step 0: backup DB + sync analytics
-    backup_db()
-    sync_analytics()
+    # Steps 1-2: DB 備份 + analytics（失敗不擋 build）
+    run_step(1, "DB 備份檢查", "backup-db.py",
+             warn="DB 備份失敗，繼續 build（請手動執行 python backup-db.py）")
+    run_step(2, "同步 Cloudflare Analytics", "sync-analytics.py",
+             warn="Analytics 同步失敗，繼續 build（人気記事排名可能非最新）")
 
-    # Step 1: collect URLs
-    print("\n[1/4] Getting all URLs from WordPress database...")
+    # Steps 3-4: 圖片。先於 HTML，且失敗就中止 —— 圖片沒就位卻把 HTML 推上線會破圖
+    run_step(3, "壓縮新圖片", "compress-images.py", fatal=True)
+    run_step(4, "同步圖片到 Cloudflare R2", "sync-images.py", fatal=True)
+
+    # Step 5: collect URLs + clean output
+    print(f"\n[5/{TOTAL_STEPS}] Getting all URLs from WordPress database...")
     urls = get_urls()
     print(f"      Found {len(urls)} URLs")
 
-    # Step 2: clean output
-    print(f"\n[2/4] Preparing output folder...")
+    print(f"      Preparing output folder...")
     if html_only:
         # Only delete HTML files, keep themes/plugins/wp-includes
         deleted = 0
@@ -193,8 +220,8 @@ def main():
             shutil.rmtree(OUTPUT_DIR)
         OUTPUT_DIR.mkdir(parents=True)
 
-    # Step 3: fetch all HTML pages in parallel
-    print(f"\n[3/4] Fetching {len(urls)} pages ({WORKERS} workers)...")
+    # Step 6: fetch all HTML pages in parallel
+    print(f"\n[6/{TOTAL_STEPS}] Fetching {len(urls)} pages ({WORKERS} workers)...")
     ok_count = fail_count = 0
     failed_urls = []
 
@@ -214,14 +241,16 @@ def main():
 
     print(f"\n  Pages: {ok_count} OK / {fail_count} failed")
     if failed_urls:
-        Path(OUTPUT_DIR / "_failed_urls.txt").write_text("\n".join(failed_urls))
-        print(f"  Failed URLs saved to deploy/_failed_urls.txt")
+        FAILED_URLS_FILE.write_text("\n".join(failed_urls), encoding="utf-8")
+        print(f"  Failed URLs saved to {FAILED_URLS_FILE}")
+    elif FAILED_URLS_FILE.exists():
+        FAILED_URLS_FILE.unlink()   # 上一輪的殘留紀錄，這次全過就清掉
 
     if html_only:
-        print("\n[4/4] Skipped (--html-only mode)")
+        print("      Skipped asset copy (--html-only mode)")
     else:
-        # Step 4: copy static assets directly from filesystem
-        print("\n[4/4] Copying static assets...")
+        # copy static assets directly from filesystem
+        print("      Copying static assets...")
 
         wp_content = WP_ROOT / "wp-content"
 
@@ -234,24 +263,43 @@ def main():
         print("  Copying wp-includes...")
         copy_dir(WP_ROOT / "wp-includes", OUTPUT_DIR / "wp-includes")
 
-    # Uploads go to Cloudflare R2, NOT to Pages (would exceed 20,000 file limit)
-    # Sync separately with: aws s3 sync wp-content/uploads s3://tesstaiwan-uploads ...
+    # Uploads 走 Cloudflare R2，不進 Pages（會超過 20,000 檔案上限）
+    # 已由 step 4 的 sync-images.py 處理
 
-    # Summary
+    # Build summary
     total_files = sum(1 for _ in OUTPUT_DIR.rglob("*") if _.is_file())
     total_mb = sum(f.stat().st_size for f in OUTPUT_DIR.rglob("*") if f.is_file()) / 1_048_576
+
+    print("\n" + "-" * 50)
+    print(f"  Output : {OUTPUT_DIR}")
+    print(f"  Files  : {total_files:,}")
+    print(f"  Size   : {total_mb:,.0f} MB")
+    print("-" * 50)
+
+    # ── Step 7: 部署 ──────────────────────────────────────────────
+    # 有頁面抓取失敗就不部署：非 --html-only 模式會先清空 deploy/ 再重抓，
+    # 殘缺的結果推上線會讓線上頁面直接消失。原本靠「人工再打一行部署」擋著，
+    # 改自動部署後必須在這裡擋。
+    if fail_count > 0:
+        print(f"\n[{TOTAL_STEPS}/{TOTAL_STEPS}] 跳過部署：有 {fail_count} 個頁面抓取失敗")
+        print(f"      失敗清單：{FAILED_URLS_FILE}")
+        print("      確認並修正後，再執行：python deploy-pages.py")
+        deployed = False
+    elif no_deploy:
+        print(f"\n[{TOTAL_STEPS}/{TOTAL_STEPS}] 跳過部署（--no-deploy）")
+        print("      要部署時執行：python deploy-pages.py")
+        deployed = False
+    else:
+        deployed = run_step(TOTAL_STEPS, "部署到 Cloudflare Pages", "deploy-pages.py",
+                            fatal=True)
 
     elapsed = time.time() - start_time
     mins, secs = divmod(int(elapsed), 60)
 
     print("\n" + "=" * 50)
-    print("  Done!")
-    print(f"  Output : {OUTPUT_DIR}")
-    print(f"  Files  : {total_files:,}")
-    print(f"  Size   : {total_mb:,.0f} MB")
-    print(f"  Time   : {mins}m {secs}s")
+    print("  ✅ 完成！" if deployed else "  建置完成（尚未部署）")
+    print(f"  Time : {mins}m {secs}s")
     print("=" * 50)
-    print("\nNext: npx wrangler pages deploy deploy --project-name tesstaiwan --branch production")
 
 
 if __name__ == "__main__":

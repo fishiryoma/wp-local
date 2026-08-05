@@ -23,6 +23,9 @@ import json
 import hashlib
 from pathlib import Path
 
+# 檔名含日文/中文，cp950 主控台直接 print 會噴 UnicodeEncodeError 中斷整個壓縮
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 try:
     from PIL import Image, ImageOps
 except ImportError:
@@ -30,8 +33,9 @@ except ImportError:
     sys.exit(1)
 
 # ── Config ──────────────────────────────────────────────────────
-UPLOADS_DIR  = Path(r"C:\Users\User\Local Sites\tesstaiwan-local\app\public\wp-content\uploads")
-CACHE_FILE   = Path(r"C:\Users\User\Local Sites\tesstaiwan-local\.compress-cache.json")
+BASE_DIR     = Path(__file__).parent
+UPLOADS_DIR  = BASE_DIR / "app" / "public" / "wp-content" / "uploads"
+CACHE_FILE   = BASE_DIR / ".compress-cache.json"
 MIN_SIZE_KB  = 50       # skip files smaller than this
 JPEG_QUALITY = 85
 WEBP_QUALITY = 85
@@ -48,17 +52,37 @@ def file_hash(path):
     return h.hexdigest()
 
 
+def stamp(path, md5=None):
+    """快取項目：size + mtime 用來快速排除，md5 用來確認內容真的變了。"""
+    st = path.stat()
+    return {
+        "size":  st.st_size,
+        "mtime": st.st_mtime_ns,
+        "md5":   md5 if md5 is not None else file_hash(path),
+    }
+
+
+def unchanged(path, entry):
+    """先看 size/mtime，相同就不必讀檔算 MD5（全樹 1.7 GB，這步省下數分鐘）。"""
+    if not isinstance(entry, dict):
+        return False        # 舊版快取只存 MD5 字串，視為 miss，重算一次後升級格式
+    st = path.stat()
+    if entry.get("size") != st.st_size or entry.get("mtime") != st.st_mtime_ns:
+        return False
+    return True
+
+
 def load_cache():
     if CACHE_FILE.exists():
         try:
-            return json.loads(CACHE_FILE.read_text())
+            return json.loads(CACHE_FILE.read_text(encoding="utf-8"))
         except Exception:
             pass
     return {}
 
 
 def save_cache(cache):
-    CACHE_FILE.write_text(json.dumps(cache, indent=2))
+    CACHE_FILE.write_text(json.dumps(cache, indent=2), encoding="utf-8")
 
 
 def compress(path):
@@ -124,10 +148,16 @@ def main():
 
     for i, path in enumerate(files, 1):
         key = str(path)
-        current_hash = file_hash(path)
+        entry = cache.get(key)
 
-        if not force_all and cache.get(key) == current_hash:
-            continue  # unchanged since last run
+        if not force_all and unchanged(path, entry):
+            continue  # size/mtime 都沒動，不用讀檔
+
+        # size 或 mtime 變了才算 MD5：純粹被 touch 過的檔案不會被誤壓
+        current_hash = file_hash(path)
+        if not force_all and isinstance(entry, dict) and entry.get("md5") == current_hash:
+            cache[key] = stamp(path, current_hash)   # 只更新 mtime，跳過壓縮
+            continue
 
         saved, reason = compress(path)
 
@@ -144,8 +174,8 @@ def main():
             if saved > 0:
                 print(f"  [{i}] OK   {path.name}  (-{saved // 1024} KB)")
 
-        # update cache with new hash (after compression)
-        cache[key] = file_hash(path)
+        # update cache with new size/mtime/hash (after compression)
+        cache[key] = stamp(path)
 
     save_cache(cache)
 
@@ -161,7 +191,7 @@ def main():
     print(f"  Time      : {mins}m {secs}s")
     print("=" * 50)
     print("\nNext: sync to R2")
-    print("  aws s3 sync ... s3://tesstaiwan-uploads ...")
+    print("  python sync-images.py")
 
 
 if __name__ == "__main__":
