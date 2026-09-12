@@ -1,0 +1,8 @@
+# Wrangler 本地開發用環境變數
+# 使用方式：複製這份檔案為 .dev.vars，再填入下方真實值（wrangler 不會讀取 .env，只讀 .dev.vars）
+
+# Cloudflare Analytics Token（需有 Zone Analytics:Read 權限）
+ANALYTICS_TOKEN=
+
+# Cloudflare Zone ID
+CF_ZONE_ID=

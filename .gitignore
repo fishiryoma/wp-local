@@ -10,6 +10,8 @@ app/public/*
 .env
 .env.*
 .dev.vars
+!.env.example
+!analytics-worker/.dev.vars.example
 
 # Database (contains all WordPress data and hashed passwords)
 *.sql
