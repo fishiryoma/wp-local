@@ -44,8 +44,6 @@ _failed_urls.txt
 # ── style-editor (日文校對工具，已拆成獨立 repo：style-editor) ──
 style-editor/
 
-# ── README.local.md：跟 README.md 內容相同，但保留真實網域/bucket 名稱，
-# 只給自己在本機對照用，不進 public repo（README.md 是通用/去識別化版本）
 README.local.md
 
 # ── OS ───────────────────────────────────────────────────────────
