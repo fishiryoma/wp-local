@@ -23,8 +23,10 @@ logs/
 # ── Generated output ─────────────────────────────────────────────
 deploy/
 
-# ── Wrangler (contains Account ID and email) ────────────────────
+# ── Wrangler (contains Account ID, KV Namespace ID, bucket/project names) ──
 **/.wrangler/
+**/wrangler.toml
+!**/wrangler.toml.example
 
 # ── Python ───────────────────────────────────────────────────────
 __pycache__/

@@ -50,7 +50,7 @@ BASE_DIR = Path(__file__).parent
 load_dotenv(BASE_DIR / ".env")
 
 UPLOADS_DIR = BASE_DIR / "app" / "public" / "wp-content" / "uploads"
-R2_BUCKET   = "tesstaiwan-uploads"
+R2_BUCKET   = os.getenv("R2_UPLOADS_BUCKET", "")
 ACCOUNT_ID  = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
 MAX_WORKERS = 16
 

@@ -19,13 +19,15 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from dotenv import load_dotenv
 
 # 訊息含 emoji（❌）與中文，cp950 主控台直接 print 會噴 UnicodeEncodeError
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 BASE_DIR   = Path(__file__).parent
+load_dotenv(BASE_DIR / ".env")
 DEPLOY_DIR = BASE_DIR / "deploy"
-CF_PROJECT = "tesstaiwan"
+CF_PROJECT = os.getenv("CF_PAGES_PROJECT", "")
 CF_BRANCH  = "production"
 
 

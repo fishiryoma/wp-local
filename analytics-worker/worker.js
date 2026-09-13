@@ -1,5 +1,5 @@
 /**
- * tesstaiwan-analytics Worker
+ * Analytics Worker
  *
  * Cron: 每天凌晨 2 點（UTC+8 = 18:00 UTC 前一天）
  *   wrangler.toml 設定的是 UTC 時間，台灣時間凌晨 2 點 = UTC 18:00

@@ -1,6 +1,6 @@
 """
 backup-db.py
-MySQL -> gzip SQL dump -> Cloudflare R2 (tesstaiwan-db-backups)
+MySQL -> gzip SQL dump -> Cloudflare R2（bucket 名稱見 .env 的 R2_BACKUP_BUCKET）
 
 Usage:
     python backup-db.py           # 若距上次備份 >= 30 天才執行
@@ -10,7 +10,7 @@ Requirements:
     pip install python-dotenv mysql-connector-python --break-system-packages
     aws CLI 已設定 R2 存取金鑰（aws configure）
 
-備份前請先在 Cloudflare Dashboard 手動建立 R2 Bucket：tesstaiwan-db-backups
+備份前請先在 Cloudflare Dashboard 手動建立 R2 Bucket，並在 .env 設定 R2_BACKUP_BUCKET
 """
 
 import sys
@@ -29,7 +29,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
 CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
-R2_BACKUP_BUCKET      = os.getenv("R2_BACKUP_BUCKET", "tesstaiwan-db-backups")
+R2_BACKUP_BUCKET      = os.getenv("R2_BACKUP_BUCKET", "")
 
 DB_HOST         = os.getenv("DB_HOST", "localhost")
 DB_PORT         = int(os.getenv("DB_PORT", "3306"))

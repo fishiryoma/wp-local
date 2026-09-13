@@ -3,7 +3,7 @@
  * get-all-urls.php
  * Collects ALL public WordPress URLs and saves to wp-content/uploads/all-urls.json
  * Visit once in browser, then Python reads the file directly from disk.
- * Access: http://tesstaiwan-local.local/get-all-urls.php
+ * Access: http://your-site-local.local/get-all-urls.php
  */
 set_time_limit(300);
 require_once __DIR__ . '/wp-load.php';

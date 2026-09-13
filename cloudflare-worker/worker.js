@@ -1,5 +1,3 @@
-const PAGES_URL = "https://tesstaiwan.pages.dev";
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -21,7 +19,7 @@ export default {
 
     // Everything else from Pages
     const pagesRequest = new Request(
-      PAGES_URL + url.pathname + url.search,
+      env.PAGES_URL + url.pathname + url.search,
       request
     );
     return fetch(pagesRequest);

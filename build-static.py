@@ -27,6 +27,7 @@ Requirements:
     pip install requests
 """
 
+import os
 import sys
 import time
 import shutil
@@ -36,14 +37,16 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
+from dotenv import load_dotenv
 
 # 頁面路徑與訊息含中日文與 emoji（❌ ✅），cp950 主控台直接 print 會噴 UnicodeEncodeError
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 # ── Configuration ──────────────────────────────────────────────
 BASE_DIR       = Path(__file__).parent
-LOCAL_URL      = "http://tesstaiwan-local.local"
-PROD_URL       = "https://tesstaiwan.com"
+load_dotenv(BASE_DIR / ".env")
+LOCAL_URL      = os.getenv("LOCAL_URL", "")
+PROD_URL       = os.getenv("PROD_URL", "")
 WP_ROOT        = BASE_DIR / "app" / "public"
 OUTPUT_DIR     = BASE_DIR / "deploy"
 # 刻意放在 deploy/ 之外：寫在 deploy/ 裡會被一起部署，變成公開可讀的檔案
@@ -70,7 +73,7 @@ def get_urls():
             return sorted(urls)
     else:
         print(f"      all-urls.json not found, falling back to sitemap...")
-        print(f"      Tip: visit http://tesstaiwan-local.local/get-all-urls.php first")
+        print(f"      Tip: visit {LOCAL_URL}/get-all-urls.php first")
 
     # --- Fallback: sitemap ---
     urls = set()

@@ -1,0 +1,10 @@
+name = "your-site-name"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "your-uploads-bucket"
+
+[vars]
+PAGES_URL = "https://your-site-name.pages.dev"

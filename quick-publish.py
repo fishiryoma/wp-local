@@ -3,7 +3,7 @@ quick-publish.py
 Rebuilds only the pages affected by a new/updated post.
 
 Usage:
-    python quick-publish.py https://tesstaiwan-local.local/your-post-slug/
+    python quick-publish.py https://your-site-local.local/your-post-slug/
 
 What it rebuilds:
     - The post itself
@@ -19,19 +19,22 @@ What it rebuilds:
     python deploy-pages.py
 """
 
+import os
 import sys
 import time
 import requests
 from pathlib import Path
 from urllib.parse import urlparse
+from dotenv import load_dotenv
 
 # 頁面路徑與訊息含中日文與 emoji（⚠️），cp950 主控台直接 print 會噴 UnicodeEncodeError
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 # ── Config ──────────────────────────────────────────────────────
 BASE_DIR   = Path(__file__).parent
-LOCAL_URL  = "http://tesstaiwan-local.local"
-PROD_URL   = "https://tesstaiwan.com"
+load_dotenv(BASE_DIR / ".env")
+LOCAL_URL  = os.getenv("LOCAL_URL", "")
+PROD_URL   = os.getenv("PROD_URL", "")
 DEPLOY_DIR = BASE_DIR / "deploy"
 TIMEOUT    = 60
 # ────────────────────────────────────────────────────────────────
@@ -136,7 +139,7 @@ def sync_analytics():
 def main():
     if len(sys.argv) < 2:
         print("Usage: python quick-publish.py <post-url>")
-        print("Example: python quick-publish.py https://tesstaiwan-local.local/my-post/")
+        print("Example: python quick-publish.py https://your-site-local.local/my-post/")
         sys.exit(1)
 
     post_url = sys.argv[1].rstrip("/") + "/"

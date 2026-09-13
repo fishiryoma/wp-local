@@ -13,7 +13,7 @@ new-post.py
 備份放最前面：發文本身不改 DB，但先備份可保證後續任一步失敗時已有備份。
 
 Usage:
-    python new-post.py http://tesstaiwan-local.local/你的文章網址/
+    python new-post.py http://your-site-local.local/你的文章網址/
 
 Requirements:
     - Local WP 必須正在執行
@@ -71,7 +71,7 @@ def run(label: str, cmd: list[str], cwd=None, fatal: bool = True) -> bool:
 def main():
     if len(sys.argv) < 2:
         print("Usage: python new-post.py <post-url>")
-        print("Example: python new-post.py http://tesstaiwan-local.local/my-post/")
+        print("Example: python new-post.py http://your-site-local.local/my-post/")
         sys.exit(1)
 
     post_url   = sys.argv[1]
