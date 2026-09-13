@@ -1,15 +1,18 @@
-# tesstaiwan.com 靜態網站建置說明
+# WordPress 靜態網站建置說明
 
 WordPress 內容透過 Python 腳本轉成靜態檔案，部署在 Cloudflare 上。
 
 ## 架構
 
-| 服務                                 | 用途                                 |
-| ------------------------------------ | ------------------------------------ |
-| Cloudflare Pages                     | 靜態 HTML / CSS / JS                 |
-| Cloudflare R2 (`tesstaiwan-uploads`) | 圖片和媒體檔案                       |
-| Cloudflare Worker (`tesstaiwan`)     | 路由：圖片請求 → R2，其他 → Pages    |
-| Local WP (`tesstaiwan-local.local`)  | 本地 WordPress，用於撰寫內容和 build |
+| 服務                                  | 用途                                 |
+| ------------------------------------- | ------------------------------------ |
+| Cloudflare Pages                      | 靜態 HTML / CSS / JS                 |
+| Cloudflare R2 (`your-uploads-bucket`) | 圖片和媒體檔案                       |
+| Cloudflare Worker (`your-site-name`)  | 路由：圖片請求 → R2，其他 → Pages    |
+| Local WP (`your-site-local.local`)    | 本地 WordPress，用於撰寫內容和 build |
+
+所有站台專屬的網域、bucket、專案名稱都透過 `.env` 設定（見 `.env.example`），
+下面範例裡的 `your-site-local.local`、`your-domain.com` 等請替換成你自己的值。
 
 ---
 
@@ -40,7 +43,7 @@ WordPress 內容透過 Python 腳本轉成靜態檔案，部署在 Cloudflare �
 2. **只有「新增文章」時**要先刷新網址清單：瀏覽器開啟
 
     ```
-    http://tesstaiwan-local.local/get-all-urls.php
+    http://your-site-local.local/get-all-urls.php
     ```
 
     等待顯示 `"status": "done"`。編輯既有文章可跳過這步。
@@ -48,15 +51,15 @@ WordPress 內容透過 Python 腳本轉成靜態檔案，部署在 Cloudflare �
 3. 執行：
 
     ```powershell
-    cd "C:\Users\User\Local Sites\tesstaiwan-local"
-    python new-post.py http://tesstaiwan-local.local/你的文章網址/
+    cd "<你的專案根目錄>"
+    python new-post.py http://your-site-local.local/你的文章網址/
     ```
 
 [new-post.py](new-post.py) **會跑**：
 
 1. **DB 備份檢查**（`backup-db.py`）——距上次備份 ≥ 30 天才真的備份，否則只比對日期、幾乎不花時間。備份失敗只警告，不會中止發文
 2. **壓縮新圖片**（`compress-images.py`）——只處理新增/修改的圖片（先比對 size + mtime，沒變的完全不讀檔），JPEG/WebP quality 85、PNG 無失真壓縮，小於 50KB 自動跳過。約 1 秒
-3. **同步圖片到 Cloudflare R2**（`sync-images.py`）——列出 R2 全部物件與本地比對，只上傳新增/大小不同的檔案，不刪除 R2 上既有的東西。全量比對 3.7 萬個檔案約 30 秒
+3. **同步圖片到 Cloudflare R2**（`sync-images.py`）——列出 R2 全部物件與本地比對，只上傳新增/大小不同的檔案，不刪除 R2 上既有的東西
 4. **Build HTML**（`quick-publish.py`）——只重建**該文章本身 + 首頁（第 1、2 頁）+ 該文章所屬的分類/標籤彙整頁**，建置前會先同步一次 Cloudflare Analytics（見下方「Analytics 同步」）
 5. **部署到 Cloudflare Pages**（`deploy-pages.py`）
 
@@ -80,7 +83,7 @@ WordPress 內容透過 Python 腳本轉成靜態檔案，部署在 Cloudflare �
 2. **這段期間若有新增或刪除文章／頁面**，先刷新網址清單（只改設定可跳過）：
 
     ```
-    http://tesstaiwan-local.local/get-all-urls.php
+    http://your-site-local.local/get-all-urls.php
     ```
 
     等待 `"status": "done"`。這會查詢 WordPress 資料庫，把所有公開頁面的 URL 輸出到 `wp-content/uploads/all-urls.json`。
@@ -88,7 +91,7 @@ WordPress 內容透過 Python 腳本轉成靜態檔案，部署在 Cloudflare �
 3. 執行：
 
     ```powershell
-    cd "C:\Users\User\Local Sites\tesstaiwan-local"
+    cd "<你的專案根目錄>"
 
     # 完整重建（含 themes/plugins/wp-includes）
     python build-static.py
@@ -114,9 +117,9 @@ WordPress 內容透過 Python 腳本轉成靜態檔案，部署在 Cloudflare �
 
 **什麼時候用 `--html-only`：** 改的是 WordPress 設定，但主題／外掛的檔案本身沒有變動。
 
-> **`--html-only` 的一個副作用：** 它會刪掉 `deploy/` 底下**所有** `.html` 再重抓，包含主題／外掛自帶的 39 個 `.html`（例如 `plugins/updraftplus/index.html`、`themes/twentytwentyfive/templates/*.html`、以及一個 2.7 MB 的 `plugins/advanced-ads/graphify-out/graph.html`）。因為它跳過靜態檔複製，這些檔案不會被還原，要等下次完整重建才會回來。
+> **`--html-only` 的一個副作用：** 它會刪掉 `deploy/` 底下**所有** `.html` 再重抓，包含主題／外掛自帶的 `.html`（例如 `plugins/updraftplus/index.html`、`themes/twentytwentyfive/templates/*.html` 這類樣板、目錄佔位、外掛測試頁）。因為它跳過靜態檔複製，這些檔案不會被還原，要等下次完整重建才會回來。
 >
-> 這些檔案對靜態網站沒有用途（都是 WordPress 伺服器端讀的樣板、目錄佔位 `index.html`、外掛測試頁與 demo 頁），所以刪掉不影響網站運作——反而完整重建會把它們一起公開出去，包括那 2.7 MB 的無用檔案，還會暴露你裝了哪些外掛。兩種模式行為不一致，目前是 `--html-only` 這邊比較理想。
+> 這些檔案對靜態網站沒有用途（都是 WordPress 伺服器端讀的樣板、目錄佔位 `index.html`、外掛測試頁與 demo 頁），所以刪掉不影響網站運作——反而完整重建會把它們一起公開出去，還會暴露你裝了哪些外掛。兩種模式行為不一致，目前是 `--html-only` 這邊比較理想。
 
 > ⚠️ **有頁面抓取失敗時不會自動部署。** 不加 `--html-only` 的完整重建會先清空整個 `deploy/` 再重抓上千頁，若中途有頁面失敗還照推上線，線上頁面會直接消失。程式偵測到失敗會跳過部署、把失敗清單寫到專案根目錄的 `_failed_urls.txt`，你確認修正後再執行 `python deploy-pages.py`。
 
@@ -141,27 +144,28 @@ python deploy-pages.py
 ### `quick-publish.py` — 只重建單篇文章的 HTML
 
 ```powershell
-python quick-publish.py http://tesstaiwan-local.local/你的文章網址/
+python quick-publish.py http://your-site-local.local/你的文章網址/
 python deploy-pages.py    # 記得自己部署
 ```
 
 這支是情境 1 的第 4 步，也可以單獨執行。它**不壓縮圖片、不同步 R2、不做 DB 備份、也不部署**。
 
-> ⚠️ 只有在**確定完全沒動過任何圖片**、想省下圖片比對的約 30 秒時才用。判斷錯了（其實動了圖片卻用這支）→ 圖片永遠不會上傳到 R2，線上直接破圖。另外長期只用這支會讓 30 天 DB 備份失效。**日常請一律用情境 1。**
+> ⚠️ 只有在**確定完全沒動過任何圖片**、想省下圖片比對時間時才用。判斷錯了（其實動了圖片卻用這支）→ 圖片永遠不會上傳到 R2，線上直接破圖。另外長期只用這支會讓 30 天 DB 備份失效。**日常請一律用情境 1。**
 
 ### `cloudflare-worker/` — Cloudflare Worker 程式碼
 
-不屬於發文流程，只有改路由邏輯本身時才需要處理。
+不屬於發文流程，只有改路由邏輯本身時才需要處理。部署設定請複製 `wrangler.toml.example` 為
+`wrangler.toml` 並填入你自己的值。
 
-| 檔案            | 說明                                 |
-| --------------- | ------------------------------------ |
-| `worker.js`     | Worker 邏輯：圖片走 R2，其他走 Pages |
-| `wrangler.toml` | Worker 設定（名稱、R2 binding）      |
+| 檔案                    | 說明                                 |
+| ----------------------- | ------------------------------------ |
+| `worker.js`             | Worker 邏輯：圖片走 R2，其他走 Pages |
+| `wrangler.toml.example` | Worker 設定範本（名稱、R2 binding）  |
 
 **更新 Worker：**
 
 ```powershell
-cd "C:\Users\User\Local Sites\tesstaiwan-local\cloudflare-worker"
+cd "<你的專案根目錄>\cloudflare-worker"
 npx wrangler deploy
 ```
 
@@ -173,10 +177,10 @@ npx wrangler deploy
 
 **1. `analytics-worker/` — 每天自動抓資料（不需手動介入）**
 
-一支獨立部署的 Cloudflare Worker，用 cron 每天台灣時間凌晨 2 點自動抓「昨天」的 CDN 頁面流量，累積寫入 Workers KV（保留最近 90 天）。這是資料的主要來源，平常不需要管它，只有在第一次部署或改動 worker 邏輯時才需要：
+一支獨立部署的 Cloudflare Worker，用 cron 每天固定時間自動抓「昨天」的 CDN 頁面流量，累積寫入 Workers KV（保留最近 90 天）。這是資料的主要來源，平常不需要管它，只有在第一次部署或改動 worker 邏輯時才需要（部署設定請複製 `wrangler.toml.example` 為 `wrangler.toml` 並填入你自己的 Account ID / KV Namespace ID）：
 
 ```powershell
-cd "C:\Users\User\Local Sites\tesstaiwan-local\analytics-worker"
+cd "<你的專案根目錄>\analytics-worker"
 npx wrangler deploy
 ```
 
@@ -185,7 +189,7 @@ npx wrangler deploy
 **每次 build 時會自動執行**（`quick-publish.py` 和 `build-static.py` 都會呼叫其預設模式），平常不需要手動介入：
 
 ```powershell
-cd "C:\Users\User\Local Sites\tesstaiwan-local"
+cd "<你的專案根目錄>"
 
 # 預設：從 KV 讀取尚未套用的資料，寫入 wp_cocoon_accesses（build 時自動呼叫的模式）
 python sync-analytics.py
@@ -207,7 +211,7 @@ python sync-analytics.py --backfill
 **步驟 1：壓縮圖片**
 
 ```powershell
-cd "C:\Users\User\Local Sites\tesstaiwan-local"
+cd "<你的專案根目錄>"
 
 # 只處理新增/修改的圖片（一般使用）
 python compress-images.py
@@ -222,7 +226,7 @@ python compress-images.py --all
 **步驟 2：同步到 R2**
 
 ```powershell
-cd "C:\Users\User\Local Sites\tesstaiwan-local"
+cd "<你的專案根目錄>"
 
 # 一般同步（只新增/更新，一般使用）
 python sync-images.py
@@ -236,14 +240,13 @@ python sync-images.py --delete
 
 > 比對方式：把 R2 全部物件與本地檔案各自讀成清單，比對 key 與檔案大小，只上傳新增或大小不同的檔案。
 > 預設不加 `--delete`，只會新增/更新檔案，不會刪除 R2 上的任何東西。
-> 若未來 R2 容量接近 10GB 上限，可加上 `--delete` 讓 R2 與本地完全同步。
 
 #### ⚠️ 不要改回 `aws s3 sync`
 
 R2 的 `ListObjectsV2` **回傳順序不是字典序**，例如它會把 `X.png.webp` 排在 `X.png` 前面（字典序上 `X.png` 是前綴，必須排在前面）。而 `aws s3 sync` 是對「兩個已排序清單」做 merge-join，遇到亂序就會對不齊。
 
-因為本站每張圖都有 `X.jpg` / `X.jpg.webp` 這種配對，全 bucket 有一萬多處這樣的順序反轉，結果是 **`aws s3 sync` 每次都會重傳約一半的檔案（約 18,500 個），且永遠不會收斂**。這與檔名是否含日文無關，純 ASCII 檔名一樣中招；加 `--size-only` 也擋不住（大小比對本身是對的，錯的是排序假設）。
+如果 bucket 裡每張圖都有 `X.jpg` / `X.jpg.webp` 這種配對，順序反轉的數量會隨圖片量增加，結果是 **`aws s3 sync` 每次都會重傳約一半的檔案，且永遠不會收斂**。這與檔名是否含非 ASCII 字元無關，純 ASCII 檔名一樣中招；加 `--size-only` 也擋不住（大小比對本身是對的，錯的是排序假設）。
 
 `sync-images.py` 改成自己讀兩邊清單做 dict 比對，完全不依賴回傳順序。判斷有沒有再退化的方法：同步完成後再跑一次 `--dry-run`，**待上傳必須是 0**。
 
-> 另註：AWS CLI 在 cp950 主控台碰到日文檔名會直接以 `'cp950' codec can't encode character` 中止（rc=255），這也是不再依賴它的原因之一。
+> 另註：AWS CLI 在 cp950 主控台碰到非 ASCII 檔名會直接以 `'cp950' codec can't encode character` 中止（rc=255），這也是不再依賴它的原因之一。
