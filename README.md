@@ -117,12 +117,6 @@ WordPress 內容透過 Python 腳本轉成靜態檔案，部署在 Cloudflare �
 
 **什麼時候用 `--html-only`：** 改的是 WordPress 設定，但主題／外掛的檔案本身沒有變動。
 
-> **`--html-only` 的一個副作用：** 它會刪掉 `deploy/` 底下**所有** `.html` 再重抓，包含主題／外掛自帶的 `.html`（例如 `plugins/updraftplus/index.html`、`themes/twentytwentyfive/templates/*.html` 這類樣板、目錄佔位、外掛測試頁）。因為它跳過靜態檔複製，這些檔案不會被還原，要等下次完整重建才會回來。
->
-> 這些檔案對靜態網站沒有用途（都是 WordPress 伺服器端讀的樣板、目錄佔位 `index.html`、外掛測試頁與 demo 頁），所以刪掉不影響網站運作——反而完整重建會把它們一起公開出去，還會暴露你裝了哪些外掛。兩種模式行為不一致，目前是 `--html-only` 這邊比較理想。
-
-> ⚠️ **有頁面抓取失敗時不會自動部署。** 不加 `--html-only` 的完整重建會先清空整個 `deploy/` 再重抓上千頁，若中途有頁面失敗還照推上線，線上頁面會直接消失。程式偵測到失敗會跳過部署、把失敗清單寫到專案根目錄的 `_failed_urls.txt`，你確認修正後再執行 `python deploy-pages.py`。
-
 ---
 
 ## 其他腳本
@@ -240,13 +234,3 @@ python sync-images.py --delete
 
 > 比對方式：把 R2 全部物件與本地檔案各自讀成清單，比對 key 與檔案大小，只上傳新增或大小不同的檔案。
 > 預設不加 `--delete`，只會新增/更新檔案，不會刪除 R2 上的任何東西。
-
-#### ⚠️ 不要改回 `aws s3 sync`
-
-R2 的 `ListObjectsV2` **回傳順序不是字典序**，例如它會把 `X.png.webp` 排在 `X.png` 前面（字典序上 `X.png` 是前綴，必須排在前面）。而 `aws s3 sync` 是對「兩個已排序清單」做 merge-join，遇到亂序就會對不齊。
-
-如果 bucket 裡每張圖都有 `X.jpg` / `X.jpg.webp` 這種配對，順序反轉的數量會隨圖片量增加，結果是 **`aws s3 sync` 每次都會重傳約一半的檔案，且永遠不會收斂**。這與檔名是否含非 ASCII 字元無關，純 ASCII 檔名一樣中招；加 `--size-only` 也擋不住（大小比對本身是對的，錯的是排序假設）。
-
-`sync-images.py` 改成自己讀兩邊清單做 dict 比對，完全不依賴回傳順序。判斷有沒有再退化的方法：同步完成後再跑一次 `--dry-run`，**待上傳必須是 0**。
-
-> 另註：AWS CLI 在 cp950 主控台碰到非 ASCII 檔名會直接以 `'cp950' codec can't encode character` 中止（rc=255），這也是不再依賴它的原因之一。
