@@ -58,10 +58,11 @@
 [new-post.py](new-post.py) **會跑**：
 
 1. **DB 備份檢查**（`backup-db.py`）——距上次備份 ≥ 30 天才真的備份，否則只比對日期、幾乎不花時間。備份失敗只警告，不會中止發文
-2. **壓縮新圖片**（`compress-images.py`）——只處理新增/修改的圖片（先比對 size + mtime，沒變的完全不讀檔），JPEG/WebP quality 85、PNG 無失真壓縮，小於 50KB 自動跳過。約 1 秒
-3. **同步圖片到 Cloudflare R2**（`sync-images.py`）——列出 R2 全部物件與本地比對，只上傳新增/大小不同的檔案，不刪除 R2 上既有的東西
-4. **Build HTML**（`quick-publish.py`）——只重建**該文章本身 + 首頁（第 1、2 頁）+ 該文章所屬的分類/標籤彙整頁**，建置前會先同步一次 Cloudflare Analytics（見下方「Analytics 同步」）
-5. **部署到 Cloudflare Pages**（`deploy-pages.py`）
+2. **壓縮新圖片**（`compress-images.py`，細節見下方「圖片壓縮與上傳到 R2」）
+3. **同步圖片到 Cloudflare R2**（`sync-images.py`，細節見下方「圖片壓縮與上傳到 R2」）
+4. **Analytics 同步**（`sync-analytics.py`）——由 `quick-publish.py` 內部在建置 HTML 前自動呼叫，非獨立步驟
+5. **Build HTML**（`quick-publish.py`）——只重建**該文章本身 + 首頁（第 1、2 頁）+ 該文章所屬的分類/標籤彙整頁**
+6. **部署到 Cloudflare Pages**（`deploy-pages.py`）
 
 **會跳過**：
 
@@ -216,6 +217,7 @@ python compress-images.py --all
 
 > JPEG/WebP quality 85，PNG 無失真壓縮。小於 50KB 的檔案自動跳過。
 > 增量判斷先比對 size + mtime，兩者都沒變就完全不讀檔；只有變動過的檔案才會算 MD5 確認。
+> （MD5 是把檔案內容換算成一組固定長度字串的雜湊演算法，內容只要有任何差異算出來的結果就會不同，可用來精準判斷兩個檔案是否完全一樣，不受檔名或時間戳影響。）
 
 **步驟 2：同步到 R2**
 
