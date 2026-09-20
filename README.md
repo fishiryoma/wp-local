@@ -1,6 +1,6 @@
 # WordPress 靜態網站建置說明
 
-WordPress 內容透過 Python 腳本轉成靜態檔案，部署在 Cloudflare 上。
+設計並實作 WordPress 靜態化架構，將內容經 Python 自動化管線轉出，部署於 Cloudflare Pages/R2/Workers 邊緣網路，取代原生動態站台。
 
 ## 架構
 
